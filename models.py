@@ -62,3 +62,23 @@ async def delete_task(task_id):
         # await db.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         db.execute("UPDATE tasks SET is_deleted = 1 WHERE id = ?", (task_id,))
         await db.commit()
+
+async def fetch_boards_with_tasks_joined():
+    async with aiosqlite.connect(DB_PATH) as db:
+        query = """
+            SELECT 
+                b.id AS board_id,
+                b.name AS board_name,
+                b.description AS board_desc,
+                t.id AS task_id,
+                t.title,
+                t.description,
+                t.status,
+                t.board_id AS task_board_id
+            FROM boards b
+            LEFT JOIN tasks t ON b.id = t.board_id AND t.is_deleted = 0
+            WHERE b.is_deleted = 0
+            ORDER BY b.id
+        """
+        cursor = await db.execute(query)
+        return await cursor.fetchall()

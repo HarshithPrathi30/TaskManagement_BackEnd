@@ -1,32 +1,33 @@
 from aiohttp import web
 import asyncio
-from models import fetch_all_boards, create_board, delete_board, get_board_by_id, update_board, fetch_tasks_for_board
+from models import fetch_all_boards, create_board, delete_board, get_board_by_id, update_board, fetch_tasks_for_board, fetch_boards_with_tasks_joined
 
 async def get_boards_with_tasks(request):
     try:
-        boards = await fetch_all_boards()
+        rows = await fetch_boards_with_tasks_joined()
 
-        async def attach_tasks(board):
-            board_id = board[0]
-            tasks = await fetch_tasks_for_board(board_id)
-            return board_id, {
-                "id": board[0],
-                "name": board[1],
-                "description": board[2],
-                "tasks": [
-                    {
-                        "id": t[0],
-                        "boardId": t[1],
-                        "title": t[2],
-                        "description": t[3],
-                        "status": t[4]
-                    } for t in tasks
-                ]
-            }
+        boards_dict = {}
+        for row in rows:
+            board_id = row[0]
+            if board_id not in boards_dict:
+                boards_dict[board_id] = {
+                    "id": board_id,
+                    "name": row[1],
+                    "description": row[2],
+                    "tasks": []
+                }
 
-        boards_with_tasks = await asyncio.gather(*[attach_tasks(b) for b in boards])
-        response = {board_id: board_data for board_id, board_data in boards_with_tasks}
-        return web.json_response(response)
+            task_id = row[3]
+            if task_id is not None:
+                boards_dict[board_id]["tasks"].append({
+                    "id": task_id,
+                    "boardId": row[7],
+                    "title": row[4],
+                    "description": row[5],
+                    "status": row[6]
+                })
+
+        return web.json_response(boards_dict)
 
     except Exception as e:
         return web.json_response({"success": False, "error": str(e)}, status=500)
